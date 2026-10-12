@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Total Express — Gestão de Pagamentos</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root {
+            --tx-blue: #002D62; /* Azul corporativo Total Express */
+            --tx-red: ##b91c1c; /* Laranja de destaque */
+            --bg-main: #f1f5f9;
+            --border: #cbd5e1;
+            --text: #1e293b;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg-main); margin: 0; padding: 20px; color: var(--text); }
+        .container { max-width: 1050px; margin: auto; }
+        
+        header { background: var(--tx-blue); color: white; padding: 20px 30px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 4px solid var(--tx-orange); }
+        header h1 { margin: 0; font-size: 20px; letter-spacing: 0.5px; }
+        header p { margin: 4px 0 0 0; font-size: 12px; color: #cbd5e1; }
+
+        .tabs { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+        .tab-btn { background: #e2e8f0; color: #475569; border: none; padding: 10px 20px; border-radius: 6px 6px 0 0; font-weight: bold; cursor: pointer; }
+        .tab-btn.active { background: #fff; color: var(--tx-blue); border-top: 3px solid var(--tx-orange); }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .card { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .upload-section { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+        .upload-section input[type="file"] { border: 2px dashed var(--border); padding: 8px; border-radius: 6px; flex: 1; background: #fff; }
+
+        .control-bar { display: flex; gap: 15px; align-items: center; margin-bottom: 15px; flex-wrap: wrap; }
+        select, input[type="text"], input[type="number"] { padding: 9px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; background: #fff; outline: none; }
+        select { flex: 2; }
+
+        .btn { background: var(--tx-blue); color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .btn:hover { background: #001f3f; }
+        .btn-success { background: #059669; }
+        .btn-success:hover { background: #047857; }
+        .btn-purple { background: #7c3aed; }
+        .btn-purple:hover { background: #6d28d9; }
+        .btn-green-excel { background: #0d9488; }
+        .btn-green-excel:hover { background: #0f766e; }
+        .btn-danger { background: #dc2626; }
+        .btn-danger:hover { background: #b91c1c; }
+
+        .grid-edicao { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-top: 15px; }
+        .campo-grupo { background: #f8fafc; border: 1px solid var(--border); padding: 12px; border-radius: 6px; }
+        .campo-grupo label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 5px; }
+        .campo-grupo input { width: 100%; box-sizing: border-box; font-family: monospace; font-weight: bold; color: var(--tx-blue); }
+
+        /* ESTILO DO DEMONSTRATIVO DE PAGAMENTO */
+        .bordero-print { background: #fff; padding: 40px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; }
+        .bordero-topo { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid var(--tx-blue); padding-bottom: 15px; margin-bottom: 20px; }
+        .bordero-topo .logo-area h2 { margin: 0; font-size: 20px; color: var(--tx-blue); text-transform: uppercase; font-weight: 800; }
+        .bordero-topo .logo-area p { margin: 2px 0 0 0; font-size: 12px; color: var(--tx-orange); font-weight: 600; letter-spacing: 1px; }
+        .bordero-topo .doc-info { text-align: right; font-size: 11px; color: #64748b; }
+
+        .info-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; background: #f8fafc; padding: 12px 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #e2e8f0; }
+        .info-grid div span { font-weight: bold; color: var(--tx-blue); }
+
+        h4 { color: var(--tx-blue); border-bottom: 1px solid var(--border); padding-bottom: 5px; margin-top: 25px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 10px; }
+        th, td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+        th { background: #f1f5f9; color: var(--tx-blue); font-weight: 700; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+        td.valor, th.valor { text-align: right; font-family: monospace; }
+        td.qtd, th.qtd { text-align: center; }
+
+        .total-geral { background: #ecfdf5; border: 2px solid #059669; padding: 12px 15px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 16px; font-weight: bold; color: #065f46; margin-top: 25px; }
+
+        .security-badge { font-size: 11px; color: #94a3b8; text-align: center; margin-top: 20px; }
+
+        @media print {
+            body * { visibility: hidden; }
+            #borderoImprimir, #borderoImprimir * { visibility: visible; }
+            #borderoImprimir { position: absolute; left: 0; top: 0; width: 100%; border: none; padding: 0; box-shadow: none; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header class="no-print">
+        <div>
+            <h1>TOTAL EXPRESS — Gestão de Pagamentos</h1>
+            <p>Painel de Controle e Apuração</p>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <div id="statusTxt" style="font-size: 12px; background: #1e293b; padding: 5px 10px; border-radius: 4px; border-left: 3px solid var(--tx-red);">Aguardando Planilha</div>
+            <button id="btnLimpar" class="btn btn-danger" style="display: none; font-size: 12px; padding: 6px 12px;" onclick="limparDados()">🗑️ Trocar Planilha</button>
+        </div>
+    </header>
+
+    <div class="card no-print" id="cardUpload">
+        <div class="upload-section">
+            <label><strong>Carregar Planilha de Apuração da Matriz:</strong></label>
+            <input type="file" id="fileInput" accept=".xlsx, .xls">
+            <button class="btn" onclick="processarPlanilha()">Carregar Apuração</button>
+        </div>
+    </div>
+
+    <div class="tabs no-print" id="painelAbas" style="display: none;">
+        <button class="tab-btn active" onclick="mudarAba('extrato')">📄 1. Demonstrativo de Pagamento</button>
+        <button class="tab-btn" onclick="mudarAba('edicao')">✏️ 2. Correção no Rascunho (Isolado)</button>
+        <button class="tab-btn" onclick="mudarAba('massa')">📦 3. Download ZIP (Demonstrativos PDF)</button>
+        <button class="tab-btn" onclick="mudarAba('excel-modelo')">📊 4. Planilhas Oficiais (ZIP Excel)</button>
+    </div>
+
+    <div id="aba-extrato" class="tab-content active">
+        <div class="card no-print" id="painelControle">
+            <div class="control-bar">
+                <label><strong>Selecionar Motorista / Agregado:</strong></label>
+                <select id="selectMotorista" onchange="renderizarBordero()"></select>
+                <button class="btn" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
+            </div>
+        </div>
+
+        <div id="borderoImprimir" class="bordero-print" style="display: none;">
+            <div class="bordero-topo">
+                <div class="logo-area">
+                    <h2>TOTAL EXPRESS</h2>
+                    <p>DEMONSTRATIVO DE PAGAMENTO</p>
+                </div>
+                <div class="doc-info">
+                    <strong>TOTAL EXPRESS LTDA</strong>
+                </div>
+            </div>
+
+            <div class="info-grid" id="infoCadastral"></div>
+
+            <h4>1. Composição de Proventos</h4>
+            <table id="tabelaProventos">
+                <thead>
+                    <tr>
+                        <th>Discriminação do Item</th>
+                        <th class="qtd">Qtd. Unid.</th>
+                        <th class="valor">Total (R$)</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+
+            <h4>2. Auditoria de CAFs</h4>
+            <table id="tabelaCafs">
+                <thead>
+                    <tr>
+                        <th>Nº CAF</th>
+                        <th>Status</th>
+                        <th>Abertura</th>
+                        <th>Finalização</th>
+                        <th class="qtd">Peças CAF</th>
+                        <th class="valor">Valor Apurado (R$)</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+
+            <div class="total-geral">
+                <span>Valor Líquido Final a Receber:</span>
+                <span id="txtTotalLiquido">R$ 0,00</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="aba-edicao" class="tab-content">
+        <div class="card">
+            <h3 style="margin-top:0; color:var(--tx-blue);">Edição em Rascunho (Camada Isolada)</h3>
+            <p style="font-size: 13px; color:#64748b;">Ajuste pontual de valores para conferência. A base original enviada pela matriz permanece inalterada.</p>
+            
+            <div class="control-bar" style="margin-top: 15px;">
+                <label><strong>Selecionar Motorista para Ajuste:</strong></label>
+                <select id="selectMotoristaEdicao" onchange="carregarFormularioEdicao()"></select>
+                <button class="btn" style="background:var(--tx-blue);" onclick="imprimirDiretoDoRascunho()">🖨️ Imprimir Demonstrativo deste Rascunho</button>
+            </div>
+
+            <div id="formularioEdicaoContainer"></div>
+        </div>
+    </div>
+
+    <div id="aba-massa" class="tab-content">
+        <div class="card" style="text-align: center; padding: 40px 20px;">
+            <h3 style="margin-top:0; color:var(--tx-blue);">Exportação em Massa — Demonstrativos prontos para PDF (ZIP)</h3>
+            <p style="font-size: 14px; color:#64748b; max-width: 600px; margin: 0 auto 25px auto;">
+                Gere um arquivo <strong>.zip</strong> contendo os demonstrativos formatados com script de salvamento automático em PDF para <strong>todos os motoristas</strong>.
+            </p>
+            <button class="btn btn-purple" style="font-size: 16px; padding: 15px 30px;" onclick="baixarBorderosEmMassa()">📦 Gerar ZIP de Demonstrativos em PDF</button>
+            <div id="progressoMassa" style="margin-top: 20px; font-weight: bold; color: var(--tx-blue);"></div>
+        </div>
+    </div>
+
+    <div id="aba-excel-modelo" class="tab-content">
+        <div class="card" style="text-align: center; padding: 40px 20px;">
+            <h3 style="margin-top:0; color:var(--tx-blue);">Exportação em Massa — Planilhas Oficiais (ZIP Excel)</h3>
+            <p style="font-size: 14px; color:#64748b; max-width: 600px; margin: 0 auto 25px auto;">
+                Gere um arquivo <strong>.zip</strong> contendo a planilha Excel individualizada de <strong>cada motorista</strong> no padrão oficial exigido pela Total Express.
+            </p>
+            <button class="btn btn-green-excel" style="font-size: 16px; padding: 15px 30px;" onclick="baixarExcelModeloOficial()">📊 Gerar ZIP com Planilhas Oficiais Excel</button>
+            <div id="progressoExcel" style="margin-top: 20px; font-weight: bold; color: #059669;"></div>
+        </div>
+    </div>
+
+    <div class="security-badge no-print">
+        🔒 Total Express — Processamento 100% local e seguro.
+    </div>
+</div>
+
+<script>
+let dadosApuracaoOriginal = [];
+let dadosCafs = [];
+let dadosTemporarios = [];
+
+function mudarAba(nomeAba) {
+    const idxAtual = document.getElementById('selectMotoristaEdicao').value;
+    if (idxAtual !== "") capturarDadosFormulario(idxAtual);
+
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    
+    if (nomeAba === 'extrato') {
+        document.getElementById('aba-extrato').classList.add('active');
+        document.querySelectorAll('.tab-btn')[0].classList.add('active');
+        renderizarBordero();
+    } else if (nomeAba === 'edicao') {
+        document.getElementById('aba-edicao').classList.add('active');
+        document.querySelectorAll('.tab-btn')[1].classList.add('active');
+        atualizarSelectsEdicao();
+    } else if (nomeAba === 'massa') {
+        document.getElementById('aba-massa').classList.add('active');
+        document.querySelectorAll('.tab-btn')[2].classList.add('active');
+    } else if (nomeAba === 'excel-modelo') {
+        document.getElementById('aba-excel-modelo').classList.add('active');
+        document.querySelectorAll('.tab-btn')[3].classList.add('active');
+    }
+}
+
+function formatarData(valorData) {
+    if (!valorData) return "-";
+    if (typeof valorData === 'number') {
+        const dataJS = XLSX.SSF.parse_date_code(valorData);
+        if (dataJS) {
+            return `${String(dataJS.d).padStart(2, '0')}/${String(dataJS.m).padStart(2, '0')}/${dataJS.y}`;
+        }
+    }
+    let str = String(valorData).trim();
+    if (str.length >= 10 && str.includes("-")) {
+        let partes = str.substring(0, 10).split("-");
+        if (partes.length === 3) return `${partes[2]}/${partes[1]}/${partes[0]}`;
+    }
+    return str;
+}
+
+function processarPlanilha() {
+    const fileInput = document.getElementById('fileInput');
+    if (fileInput.files.length === 0) {
+        alert('Selecione o arquivo Excel de apuração.');
+        return;
+    }
+
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+
+            let abaApuracao = workbook.SheetNames.includes("APURACAO") ? "APURACAO" : workbook.SheetNames[0];
+            const wsApuracao = workbook.Sheets[abaApuracao];
+            
+            const rowsApuracao = XLSX.utils.sheet_to_json(wsApuracao, { header: 1 });
+            let cabecalhoIdx = 0;
+            for (let i = 0; i < Math.min(rowsApuracao.length, 10); i++) {
+                if (rowsApuracao[i].some(cell => cell && String(cell).toUpperCase().includes("NOME MOTORISTA"))) {
+                    cabecalhoIdx = i;
+                    break;
+                }
+            }
+            dadosApuracaoOriginal = XLSX.utils.sheet_to_json(wsApuracao, { range: cabecalhoIdx });
+            dadosTemporarios = JSON.parse(JSON.stringify(dadosApuracaoOriginal));
+
+            if (workbook.SheetNames.includes("CAFS")) {
+                dadosCafs = XLSX.utils.sheet_to_json(workbook.Sheets["CAFS"]);
+            } else {
+                dadosCafs = [];
+            }
+
+            preencherSelects();
+            document.getElementById('statusTxt').innerText = "Apuração Carregada com Sucesso";
+            document.getElementById('cardUpload').style.display = "none";
+            document.getElementById('btnLimpar').style.display = "block";
+            document.getElementById('painelAbas').style.display = "flex";
+            document.getElementById('borderoImprimir').style.display = "block";
+
+        } catch (err) {
+            console.error(err);
+            alert('Erro ao ler a planilha. Verifique o formato.');
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function limparDados() {
+    if (confirm("Deseja limpar os dados atuais e carregar uma nova apuração?")) {
+        dadosApuracaoOriginal = [];
+        dadosCafs = [];
+        dadosTemporarios = [];
+        document.getElementById('fileInput').value = "";
+        document.getElementById('statusTxt').innerText = "Aguardando Planilha";
+        document.getElementById('cardUpload').style.display = "block";
+        document.getElementById('btnLimpar').style.display = "none";
+        document.getElementById('painelAbas').style.display = "none";
+        document.getElementById('borderoImprimir').style.display = "none";
+        mudarAba('extrato');
+    }
+}
+
+function preencherSelects() {
+    const select1 = document.getElementById('selectMotorista');
+    const select2 = document.getElementById('selectMotoristaEdicao');
+    select1.innerHTML = "";
+    select2.innerHTML = "";
+
+    dadosTemporarios.forEach((mot, idx) => {
+        let nome = mot["Nome Motorista"] || mot["NOME DO MOTORISTA"] || `Motorista ${idx+1}`;
+        let idMot = mot["Id Motorista"] || "-";
+        
+        let opt1 = document.createElement('option');
+        opt1.value = idx;
+        opt1.textContent = `${nome} (ID: ${idMot})`;
+        select1.appendChild(opt1);
+
+        let opt2 = document.createElement('option');
+        opt2.value = idx;
+        opt2.textContent = `${nome} (ID: ${idMot})`;
+        select2.appendChild(opt2);
+    });
+
+    renderizarBordero();
+    carregarFormularioEdicao();
+}
+
+function atualizarSelectsEdicao() {
+    const select1 = document.getElementById('selectMotorista').value;
+    if (select1 !== "") {
+        document.getElementById('selectMotoristaEdicao').value = select1;
+        carregarFormularioEdicao();
+    }
+}
+
+function carregarFormularioEdicao() {
+    const idx = document.getElementById('selectMotoristaEdicao').value;
+    if (idx === "") return;
+
+    const mot = dadosTemporarios[idx];
+    const container = document.getElementById('formularioEdicaoContainer');
+    
+    let html = `<div class="grid-edicao">`;
+
+    html += `
+        <div class="campo-grupo">
+            <label>Qtd. Dias Trabalhados</label>
+            <input type="number" id="input_dias_${idx}" value="${mot["Qtd. Dias"] || 0}" oninput="capturarDadosFormulario(${idx})">
+        </div>
+        <div class="campo-grupo">
+            <label>Valor Diária Fixa (R$)</label>
+            <input type="number" step="0.01" id="input_diaria_${idx}" value="${mot["Vlr. Diaria Fixa"] || 0}" oninput="capturarDadosFormulario(${idx})">
+        </div>
+    `;
+
+    for (let [chave, valor] of Object.entries(mot)) {
+        if ((chave.startsWith("Qtd.") || chave.startsWith("Vlr.") || chave.startsWith("Vl ")) && chave !== "Qtd. Dias") {
+            html += `
+                <div class="campo-grupo">
+                    <label>${chave}</label>
+                    <input type="number" step="0.01" id="input_campo_${idx}_${btoa(encodeURIComponent(chave))}" value="${valor || 0}" oninput="capturarDadosFormulario(${idx})">
+                </div>
+            `;
+        }
+    }
+
+    html += `
+        <div class="campo-grupo">
+            <label>Valor Adicional (R$)</label>
+            <input type="number" step="0.01" id="input_adicional_${idx}" value="${mot["Vlr. Adicional"] || 0}" oninput="capturarDadosFormulario(${idx})">
+        </div>
+        <div class="campo-grupo">
+            <label>Desconto Voucher Combustível (R$)</label>
+            <input type="number" step="0.01" id="input_desconto_${idx}" value="${mot["Desconto Voucher Combustivel"] || 0}" oninput="capturarDadosFormulario(${idx})">
+        </div>
+        <div class="campo-grupo" style="grid-column: 1 / -1; background: #ecfdf5; border-color: #059669;">
+            <label style="color: #065f46; font-size: 14px; font-weight: bold;">Valor Total Líquido Final (Salvo Automaticamente)</label>
+            <input type="number" step="0.01" id="input_total_${idx}" value="${mot["Total"] || 0}" style="font-size: 16px; color: #065f46; background: #fff;" oninput="capturarDadosFormulario(${idx})">
+        </div>
+    `;
+
+    html += `</div>`;
+    container.innerHTML = html;
+}
+
+function capturarDadosFormulario(idx) {
+    if (idx === "" || idx === undefined) return;
+    let mot = dadosTemporarios[idx];
+    if (!mot) return;
+
+    let diasEl = document.getElementById(`input_dias_${idx}`);
+    let diariaEl = document.getElementById(`input_diaria_${idx}`);
+    let adicionalEl = document.getElementById(`input_adicional_${idx}`);
+    let descontoEl = document.getElementById(`input_desconto_${idx}`);
+    let totalEl = document.getElementById(`input_total_${idx}`);
+
+    if (diasEl) mot["Qtd. Dias"] = Number(diasEl.value);
+    if (diariaEl) mot["Vlr. Diaria Fixa"] = Number(diariaEl.value);
+    if (adicionalEl) mot["Vlr. Adicional"] = Number(adicionalEl.value);
+    if (descontoEl) mot["Desconto Voucher Combustivel"] = Number(descontoEl.value);
+    if (totalEl) mot["Total"] = Number(totalEl.value);
+
+    for (let [chave, valor] of Object.entries(mot)) {
+        if ((chave.startsWith("Qtd.") || chave.startsWith("Vlr.") || chave.startsWith("Vl ")) && chave !== "Qtd. Dias") {
+            let encodedKey = btoa(encodeURIComponent(chave));
+            let el = document.getElementById(`input_campo_${idx}_${encodedKey}`);
+            if (el) {
+                mot[chave] = Number(el.value);
+            }
+        }
+    }
+}
+
+function imprimirDiretoDoRascunho() {
+    const idx = document.getElementById('selectMotoristaEdicao').value;
+    if (idx === "") return;
+    capturarDadosFormulario(idx);
+    
+    document.getElementById('selectMotorista').value = idx;
+    mudarAba('extrato');
+    setTimeout(() => {
+        window.print();
+    }, 300);
+}
+
+async function baixarBorderosEmMassa() {
+    if (dadosTemporarios.length === 0) {
+        alert('Carregue uma apuração primeiro.');
+        return;
+    }
+
+    const idxAtual = document.getElementById('selectMotoristaEdicao').value;
+    if (idxAtual !== "") capturarDadosFormulario(idxAtual);
+
+    const progresso = document.getElementById('progressoMassa');
+    progresso.innerText = "Preparando arquivos PDF otimizados...";
+
+    const zip = new JSZip();
+    
+    dadosTemporarios.forEach((mot, idx) => {
+        let nome = mot["Nome Motorista"] || mot["NOME DO MOTORISTA"] || `Motorista_${idx+1}`;
+        let nomeLimpo = String(nome).replace(/[/\\?%*:|"<>]/g, '-');
+        let idMot = mot["Id Motorista"] || "-";
+        let cpf = mot["CPF"] || "-";
+        let filial = mot["Filial"] || "-";
+        let total = Number(mot["Total"] || 0);
+
+        let proventosHTML = "";
+        let dias = Number(mot["Qtd. Dias"] || 0);
+        let diariaFixa = Number(mot["Vlr. Diaria Fixa"] || 0);
+        if (dias > 0 || diariaFixa > 0) {
+            proventosHTML += `<tr><td>Diária Fixa Operacional</td><td style="text-align:center;">${dias} dias</td><td style="text-align:right; font-family:monospace;">R$ ${diariaFixa.toFixed(2)}</td></tr>`;
+        }
+
+        for (let [chave, valor] of Object.entries(mot)) {
+            if (chave.startsWith("Qtd.") && Number(valor) > 0) {
+                if (chave === "Qtd. Dias" || chave === "Qtd. Peças") continue;
+                let qtd = Number(valor);
+                let vlrProd = 0;
+                let chaveLimpa = chave.replace("Qtd.", "").trim();
+                for (let [k, v] of Object.entries(mot)) {
+                    if ((k.startsWith("Vlr.") || k.startsWith("Vl ")) && k.includes(chaveLimpa)) {
+                        vlrProd = Number(v || 0);
+                        break;
+                    }
+                }
+                if (vlrProd > 0) {
+                    proventosHTML += `<tr><td>Produção - Faixa/Serviço: ${chaveLimpa}</td><td style="text-align:center;">${qtd} un.</td><td style="text-align:right; font-family:monospace;">R$ ${vlrProd.toFixed(2)}</td></tr>`;
+                }
+            }
+        }
+
+        const adicional = Number(mot["Vlr. Adicional"] || 0);
+        if (adicional > 0) proventosHTML += `<tr><td>Adicional Operacional</td><td style="text-align:center;">-</td><td style="text-align:right; font-family:monospace;">R$ ${adicional.toFixed(2)}</td></tr>`;
+
+        const retroativo = Number(mot["Valor Retroativo"] || 0);
+        if (retroativo > 0) proventosHTML += `<tr><td>Ajuste Retroativo</td><td style="text-align:center;">-</td><td style="text-align:right; font-family:monospace;">R$ ${retroativo.toFixed(2)}</td></tr>`;
+
+        const remB2B = Number(mot["Vl Remuneração B2B"] || mot["VL Remuneração B2B"] || 0);
+        if (remB2B > 0) proventosHTML += `<tr><td>Remuneração B2B</td><td style="text-align:center;">-</td><td style="text-align:right; font-family:monospace;">R$ ${remB2B.toFixed(2)}</td></tr>`;
+
+        const descontoCombustivel = Number(mot["Desconto Voucher Combustivel"] || 0);
+        if (descontoCombustivel > 0) {
+            proventosHTML += `<tr><td style="color: #dc2626;">Desconto - Voucher Combustível</td><td style="text-align:center;">-</td><td style="text-align:right; font-family:monospace; color: #dc2626;">- R$ ${descontoCombustivel.toFixed(2)}</td></tr>`;
+        }
+
+        let cafsHTML = "";
+        const cafsMotorista = dadosCafs.filter(c => String(c["Id Motorista"] || c["ID"]) === String(idMot));
+        if (cafsMotorista.length > 0) {
+            cafsMotorista.forEach(c => {
+                let dtAbertura = formatarData(c["Data Abertura"]);
+                let dtFinalizacao = formatarData(c["Data Finalização"]);
+                let qtdPecas = c["Qtd. Peças"] || c["Qtd Peças Total"] || 0;
+                let vlrCaf = 0;
+                for (let [pk, pv] of Object.entries(c)) {
+                    if ((pk.toLowerCase().includes("vlr") || pk.toLowerCase().includes("valor")) && typeof pv === 'number' && !isNaN(pv)) {
+                        vlrCaf += pv;
+                    }
+                }
+                cafsHTML += `<tr><td><strong>${c["CAF"] || "-"}</strong></td><td>${c["Status Caf"] || "-"}</td><td>${dtAbertura}</td><td>${dtFinalizacao}</td><td style="text-align:center;">${qtdPecas}</td><td style="text-align:right; font-family:monospace;">R$ ${vlrCaf.toFixed(2)}</td></tr>`;
+            });
+        } else {
+            cafsHTML = `<tr><td colspan="6" style="text-align: center; color: #94a3b8;">Nenhum CAF individual registrado.</td></tr>`;
+        }
+
+        let htmlCompleto = `
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head>
+            <meta charset="UTF-8">
+            <title>Demonstrativo - ${nome}</title>
+            <style>
+                body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #fff; margin: 0; padding: 20px; color: #1e293b; }
+                .bordero-print { background: #fff; padding: 40px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; max-width: 800px; margin: auto; }
+                .bordero-topo { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #002D62; padding-bottom: 15px; margin-bottom: 20px; }
+                .bordero-topo .logo-area h2 { margin: 0; font-size: 20px; color: #002D62; text-transform: uppercase; font-weight: 800; }
+                .bordero-topo .logo-area p { margin: 2px 0 0 0; font-size: 12px; color: #FF6600; font-weight: 600; letter-spacing: 1px; }
+                .bordero-topo .doc-info { text-align: right; font-size: 11px; color: #64748b; }
+                .info-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; background: #f8fafc; padding: 12px 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #e2e8f0; font-size: 13px; }
+                .info-grid div span { font-weight: bold; color: #002D62; }
+                h4 { color: #002D62; border-bottom: 1px solid #cbd5e1; padding-bottom: 5px; margin-top: 25px; font-size: 13px; text-transform: uppercase; }
+                table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 10px; }
+                th, td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+                th { background: #f1f5f9; color: #002D62; font-weight: 700; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; }
+                .total-geral { background: #ecfdf5; border: 2px solid #059669; padding: 12px 15px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; font-size: 16px; font-weight: bold; color: #065f46; margin-top: 25px; }
+            </style>
+        </head>
+        <body onload="window.print()">
+            <div class="bordero-print">
+                <div class="bordero-topo">
+                    <div class="logo-area">
+                        <h2>TOTAL EXPRESS</h2>
+                        <p>DEMONSTRATIVO DE PAGAMENTO</p>
+                    </div>
+                    <div class="doc-info">
+                        <strong>TOTAL EXPRESS LTDA</strong>
+                    </div>
+                </div>
+                <div class="info-grid">
+                    <div>Motorista: <span>${nome}</span></div>
+                    <div>ID Cadastro: <span>${idMot}</span></div>
+                    <div>CPF / Filial: <span>${cpf} (${filial})</span></div>
+                </div>
+                <h4>1. Composição de Proventos e Faixas de Produção</h4>
+                <table>
+                    <thead><tr><th>Discriminação do Item / Faixa Operacional</th><th style="text-align:center;">Qtd. Unid.</th><th style="text-align:right;">Total (R$)</th></tr></thead>
+                    <tbody>${proventosHTML}</tbody>
+                </table>
+                <h4>2. Auditoria de Manifestos e Atendimentos (CAFs Realizados)</h4>
+                <table>
+                    <thead><tr><th>Nº CAF</th><th>Status</th><th>Abertura</th><th>Finalização</th><th style="text-align:center;">Peças</th><th style="text-align:right;">Valor (R$)</th></tr></thead>
+                    <tbody>${cafsHTML}</tbody>
+                </table>
+                <div class="total-geral">
+                    <span>Valor Líquido Final a Receber:</span>
+                    <span>R$ ${total.toFixed(2)}</span>
+                </div>
+            </div>
+        </body>
+        </html>
+        `;
+
+        // Salva com extensão .html preparada com script nativo de print para PDF instantâneo
+        zip.file(`Demonstrativo_${idMot}_${nomeLimpo}.html`, htmlCompleto);
+    });
+
+    progresso.innerText = "Compactando arquivos em ZIP...";
+    const content = await zip.generateAsync({ type: "blob" });
+    
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(content);
+    link.download = "Demonstrativos_PDF_TotalExpress.zip";
+    link.click();
+
+    progresso.innerText = "Sucesso! Arquivo ZIP gerado e baixado.";
+}
+
+async function baixarExcelModeloOficial() {
+    if (dadosTemporarios.length === 0) {
+        alert('Carregue uma apuração primeiro.');
+        return;
+    }
+
+    const idxAtual = document.getElementById('selectMotoristaEdicao').value;
+    if (idxAtual !== "") capturarDadosFormulario(idxAtual);
+
+    const progresso = document.getElementById('progressoExcel');
+    progresso.innerText = "Gerando planilhas oficiais Total Express...";
+
+    const zip = new JSZip();
+
+    dadosTemporarios.forEach((mot, idx) => {
+        let nome = mot["Nome Motorista"] || mot["NOME DO MOTORISTA"] || `Motorista_${idx+1}`;
+        let nomeLimpo = String(nome).replace(/[/\\?%*:|"<>]/g, '-');
+        let idMot = mot["Id Motorista"] || "-";
+
+        let rows = [
+            ["NOME DO MOTORISTA", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+            [nome, "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
+            [],
+            [
+                "Qtd. Peças", "Qtd Peças Entrega Agrupada", "Qtd. Dias", "Vlr. Diaria Fixa",
+                "Qtd. Menor 300g", "Vlr. Menor 300gr", "Qtd.Menor Agrupada 300gr", "Vlr.Menor Agrupada 300gr",
+                "Qtd. Maior 300g", "Vlr. Maior 300gr", "Qtd. Maior 10k", "Vlr. Maior 10k",
+                "Qtd. Maior 20k", "Vlr. Maior 20k", "Qtd. Lpt", "Vlr. Lpt", "Qtd. Expresso",
+                "Qtd. Cards", "Vlr. Cards", "Vlr. Adicional", "Valor Retroativo", "Vlr. Ajuda Custo", "Total"
+            ],
+            [
+                Number(mot["Qtd. Peças"] || 0),
+                Number(mot["Qtd Peças Entrega Agrupada"] || 0),
+                Number(mot["Qtd. Dias"] || 0),
+                Number(mot["Vlr. Diaria Fixa"] || 0),
+                Number(mot["Qtd. Menor 300g"] || 0),
+                Number(mot["Vlr. Menor 300gr"] || 0),
+                Number(mot["Qtd.Menor Agrupada 300gr"] || 0),
+                Number(mot["Vlr.Menor Agrupada 300gr"] || 0),
+                Number(mot["Qtd. Maior 300g"] || 0),
+                Number(mot["Vlr. Maior 300gr"] || 0),
+                Number(mot["Qtd. Maior 10k"] || 0),
+                Number(mot["Vlr. Maior 10k"] || 0),
+                Number(mot["Qtd. Maior 20k"] || 0),
+                Number(mot["Vlr. Maior 20k"] || 0),
+                Number(mot["Qtd. Lpt"] || 0),
+                Number(mot["Vlr. Lpt"] || 0),
+                Number(mot["Qtd. Expresso"] || 0),
+                Number(mot["Qtd. Cards"] || 0),
+                Number(mot["Vlr. Cards"] || 0),
+                Number(mot["Vlr. Adicional"] || 0),
+                Number(mot["Valor Retroativo"] || 0),
+                Number(mot["Vlr. Ajuda Custo"] || 0),
+                Number(mot["Total"] || 0)
+            ],
+            [],
+            [
+                "CAF", "Status Caf", "CAF Retroativa", "Valor Retroativo", "Data Abertura", "Data Finalização",
+                "Qtd. Peças", "Qtd.Peças Agrupadas", "Qtd.Peças Total", "Vlr. Diaria Fixa",
+                "Qtd. Menor 300g", "Vlr. Menor 300gr", "Qtd. Maior 300g", "Vlr. Maior 300gr",
+                "Qtd. Maior 10k", "Vlr. Maior 10k", "Qtd. Maior 20k", "Vlr. Maior 20k",
+                "Qtd. Lpt", "Vlr. Lpt", "Qtd. Expresso", "Qtd. Cards", "Vlr. Cards"
+            ]
+        ];
+
+        const cafsMotorista = dadosCafs.filter(c => String(c["Id Motorista"] || c["ID"]) === String(idMot));
+        if (cafsMotorista.length > 0) {
+            cafsMotorista.forEach(c => {
+                rows.push([
+                    c["CAF"] || "-",
+                    c["Status Caf"] || "-",
+                    c["CAF Retroativa"] || "Não",
+                    Number(c["Valor Retroativo"] || 0),
+                    formatarData(c["Data Abertura"]),
+                    formatarData(c["Data Finalização"]),
+                    Number(c["Qtd. Peças"] || 0),
+                    Number(c["Qtd.Peças Agrupadas"] || 0),
+                    Number(c["Qtd.Peças Total"] || 0),
+                    Number(c["Vlr. Diaria Fixa"] || 0),
+                    Number(c["Qtd. Menor 300g"] || 0),
+                    Number(c["Vlr. Menor 300gr"] || 0),
+                    Number(c["Qtd. Maior 300g"] || 0),
+                    Number(c["Vlr. Maior 300gr"] || 0),
+                    Number(c["Qtd. Maior 10k"] || 0),
+                    Number(c["Vlr. Maior 10k"] || 0),
+                    Number(c["Qtd. Maior 20k"] || 0),
+                    Number(c["Vlr. Maior 20k"] || 0),
+                    Number(c["Qtd. Lpt"] || 0),
+                    Number(c["Vlr. Lpt"] || 0),
+                    Number(c["Qtd. Expresso"] || 0),
+                    Number(c["Qtd. Cards"] || 0),
+                    Number(c["Vlr. Cards"] || 0)
+                ]);
+            });
+        } else {
+            rows.push(["Nenhum CAF registrado", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]);
+        }
+
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Planilha1");
+
+        let wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        zip.file(`TotalExpress_Planilha_${idMot}_${nomeLimpo}.xlsx`, wbout);
+    });
+
+    progresso.innerText = "Compactando planilhas oficiais em ZIP...";
+    const content = await zip.generateAsync({ type: "blob" });
+    
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(content);
+    link.download = "Planilhas_Oficiais_TotalExpress.zip";
+    link.click();
+
+    progresso.innerText = "Sucesso! Arquivo ZIP com as planilhas oficiais foi baixado.";
+}
+
+function renderizarBordero() {
+    const idx = document.getElementById('selectMotorista').value;
+    if (idx === "") return;
+
+    const mot = dadosTemporarios[idx];
+    const nome = mot["Nome Motorista"] || mot["NOME DO MOTORISTA"] || "-";
+    const idMot = mot["Id Motorista"] || "-";
+    const cpf = mot["CPF"] || "-";
+    const filial = mot["Filial"] || "-";
+    const total = Number(mot["Total"] || 0);
+
+    document.getElementById('infoCadastral').innerHTML = `
+        <div>Motorista / Agregado: <span>${nome}</span></div>
+        <div>ID Cadastro: <span>${idMot}</span></div>
+        <div>CPF / Filial: <span>${cpf} (${filial})</span></div>
+    `;
+
+    let tbodyProv = document.querySelector('#tabelaProventos tbody');
+    tbodyProv.innerHTML = "";
+
+    const dias = Number(mot["Qtd. Dias"] || 0);
+    const diariaFixa = Number(mot["Vlr. Diaria Fixa"] || 0);
+    if (dias > 0 || diariaFixa > 0) {
+        tbodyProv.innerHTML += `<tr><td>Diária Fixa Operacional</td><td class="qtd">${dias} dias</td><td class="valor">R$ ${diariaFixa.toFixed(2)}</td></tr>`;
+    }
+
+    for (let [chave, valor] of Object.entries(mot)) {
+        if (chave.startsWith("Qtd.") && Number(valor) > 0) {
+            if (chave === "Qtd. Dias" || chave === "Qtd. Peças") continue;
+
+            let qtd = Number(valor);
+            let vlrProd = 0;
+
+            let chaveLimpa = chave.replace("Qtd.", "").trim();
+            for (let [k, v] of Object.entries(mot)) {
+                if ((k.startsWith("Vlr.") || k.startsWith("Vl ")) && k.includes(chaveLimpa)) {
+                    vlrProd = Number(v || 0);
+                    break;
+                }
+            }
+
+            if (vlrProd > 0) {
+                tbodyProv.innerHTML += `<tr><td>Produção - Faixa/Serviço: ${chaveLimpa}</td><td class="qtd">${qtd} un.</td><td class="valor">R$ ${vlrProd.toFixed(2)}</td></tr>`;
+            }
+        }
+    }
+
+    const adicional = Number(mot["Vlr. Adicional"] || 0);
+    if (adicional > 0) tbodyProv.innerHTML += `<tr><td>Adicional Operacional</td><td class="qtd">-</td><td class="valor">R$ ${adicional.toFixed(2)}</td></tr>`;
+
+    const retroativo = Number(mot["Valor Retroativo"] || 0);
+    if (retroativo > 0) tbodyProv.innerHTML += `<tr><td>Ajuste Retroativo</td><td class="qtd">-</td><td class="valor">R$ ${retroativo.toFixed(2)}</td></tr>`;
+
+    const remB2B = Number(mot["Vl Remuneração B2B"] || mot["VL Remuneração B2B"] || 0);
+    if (remB2B > 0) tbodyProv.innerHTML += `<tr><td>Remuneração B2B</td><td class="qtd">-</td><td class="valor">R$ ${remB2B.toFixed(2)}</td></tr>`;
+
+    const descontoCombustivel = Number(mot["Desconto Voucher Combustivel"] || 0);
+    if (descontoCombustivel > 0) {
+        tbodyProv.innerHTML += `<tr><td style="color: #dc2626;">Desconto - Voucher Combustível</td><td class="qtd">-</td><td class="valor" style="color: #dc2626;">- R$ ${descontoCombustivel.toFixed(2)}</td></tr>`;
+    }
+
+    let tbodyCafs = document.querySelector('#tabelaCafs tbody');
+    tbodyCafs.innerHTML = "";
+
+    const cafsMotorista = dadosCafs.filter(c => String(c["Id Motorista"] || c["ID"]) === String(idMot));
+    
+    if (cafsMotorista.length > 0) {
+        cafsMotorista.forEach(c => {
+            let dtAbertura = formatarData(c["Data Abertura"]);
+            let dtFinalizacao = formatarData(c["Data Finalização"]);
+            let qtdPecas = c["Qtd. Peças"] || c["Qtd Peças Total"] || 0;
+            
+            let vlrCaf = 0;
+            for (let [pk, pv] of Object.entries(c)) {
+                if ((pk.toLowerCase().includes("vlr") || pk.toLowerCase().includes("valor")) && typeof pv === 'number' && !isNaN(pv)) {
+                    vlrCaf += pv;
+                }
+            }
+
+            tbodyCafs.innerHTML += `
+                <tr>
+                    <td><strong>${c["CAF"] || "-"}</strong></td>
+                    <td>${c["Status Caf"] || "-"}</td>
+                    <td>${dtAbertura}</td>
+                    <td>${dtFinalizacao}</td>
+                    <td class="qtd">${qtdPecas}</td>
+                    <td class="valor">R$ ${vlrCaf.toFixed(2)}</td>
+                </tr>
+            `;
+        });
+    } else {
+        tbodyCafs.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #94a3b8;">Nenhum CAF individual registrado na aba de apuração para este motorista.</td></tr>`;
+    }
+
+    document.getElementById('txtTotalLiquido').innerText = `R$ ${total.toFixed(2)}`;
+}
+</script>
+
+</body>
+</html>
